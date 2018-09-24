@@ -1,0 +1,194 @@
+<html>
+    <head>
+        <title>Пример SPA с окнами</title>
+        <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+        <script src="drag.js"></script>
+        <style type="text/css">
+        	html, body {margin: 0; padding: 0; font-family: sans-serif;}
+        	li, ul, ol {margin: 0; padding: 0; list-style-type: none;}
+        	
+        	.sidebar {position: relative; float: left; padding: 20px; margin: 0; z-index: 1000000; width: 200px; background: #eee;}
+        	.sidebar button { margin-bottom: 20px; width: 100%;}
+        	.sidebar .tab {padding: 3px;}
+        	
+        	.desktop {padding-left: 260px; padding-top: 20px;}
+        	.desktop .window {position: absolute; width: 200px; height: 150px; background: #eee; border: 1px solid black}
+        	.desktop .window .caption {display: block;  padding: 3px; background: black; cursor: move;}
+        	.desktop .window .caption button {float: right}
+        </style>      
+    </head>
+    <body>
+		<div id="windows-app">
+			<div class="sidebar">
+  				<button v-on:click="newWindow">Новое окно</button>
+				<ol>
+					<tab
+						v-for="window in windows"
+						v-bind:window="window"
+						v-bind:key="window.id">
+					</tab>
+				</ol>
+			</div>
+			<div class="desktop">
+				<ol>
+					<window
+						v-for="window in windows"
+						v-bind:window="window"
+						v-bind:key="window.id">
+					</window>
+				</ol>
+			</div> 
+		</div>
+    <script type="text/javascript">
+        const C = {
+        	W_ACTIVE:		"active",
+        	W_BACKGROUND:	"background",
+        	W_MINIMIZED:	"minimized",
+        }
+        
+        function setColorByState(state) {
+        	let color;
+        	
+        	switch (state) {
+				case C.W_ACTIVE:
+					color = "#6666ff";
+					break;
+				case C.W_BACKGROUND:
+					color = "#9999aa";
+					break;
+				case C.W_MINIMIZED:
+					color = "#ddd";
+					break;
+				default:
+					color = "#eee";
+			}
+			
+			return color
+        }
+        
+        
+		Vue.component('tab', {
+			props: ['window'],
+			computed: {
+				style () {;
+					return 'background: ' + setColorByState(this.window.state);
+				}
+			},
+			template:	`<li class="tab" :style="style"  v-on:click="toggle">
+							<span>{{ window.title }}</span>
+						</li>`,
+			methods: {
+				toggle: function() {
+					let state = this.window.state;
+					
+					switch(state) {
+						case C.W_ACTIVE:
+							this.$parent.minimizeWindow(this.window.id);
+							break;
+						case C.W_BACKGROUND:
+							this.$parent.activateWindow(this.window.id);
+							break;
+						case C.W_MINIMIZED:
+							this.$parent.activateWindow(this.window.id);
+							break;
+					}
+				}
+			},
+		});
+		
+		
+		Vue.component('window', {
+			props: ['window'],
+			computed: {
+				style () {
+					let z = this.window.z;
+					let display = this.window.state == C.W_MINIMIZED ? "none" : "block";
+					
+					return `display: ${display}; z-index: ${z}`;
+				},
+				captionStyle () {
+					return 'background: ' + setColorByState(this.window.state);
+				}
+			},
+			template: 	`<li class="window"  v-on:mousedown="activate" :style="style" v-drag:header>
+							<span class="caption" v-on:mousedown="activate" id="header" :style="captionStyle">
+								{{ window.title }}
+								<button v-on:click="close">X</button>
+  								<button v-on:click="minimize">_</button>
+  							</span>  							
+						</li>`,
+			methods: {
+				close: function() {
+					this.$parent.closeWindow(this.window.id);
+				},
+				minimize: function() {
+					this.$parent.minimizeWindow(this.window.id);
+				},
+				activate: function() {
+					this.$parent.activateWindow(this.window.id);
+				},
+				bringToFront: function() {
+					this.$parent.activateWindow(this.window.id);
+				},
+			},
+		});
+		
+		
+		var app4 = new Vue({
+		el: '#windows-app',
+			data: {
+				windows: [],
+				zMax: 0,
+				count: 0,
+			},
+			methods: {
+				newWindow: function() {
+					this.windows.map(win => win.state = (win.state == C.W_ACTIVE) ? C.W_BACKGROUND : win.state)
+					
+					this.windows.push({
+						id: this.count,
+						title: `Окно №${this.count+1}`,
+						z: ++this.zMax,
+						state: C.W_ACTIVE,
+					},);
+					
+					this.count++;
+				},
+				closeWindow: function(id) {
+					let index = this.windows.findIndex(x => x.id == id);
+					
+					this.windows.splice(index,1);
+					this.activateNextWindow();
+				},
+				minimizeWindow: function(id) {
+					let index = this.windows.findIndex(x => x.id == id);
+					let win = this.windows[index];
+					
+					win.z = 0;
+					
+					if (win.state == C.W_ACTIVE) { this.activateNextWindow() }
+					
+					win.state = C.W_MINIMIZED;
+				},
+				activateWindow: function(id) {
+					let index = this.windows.findIndex(x => x.id == id);
+					let win = this.windows[index];
+					
+					if (win.state == C.W_ACTIVE) { return }
+					
+					let previousActive = this.windows.findIndex(x => x.state == C.W_ACTIVE);
+					
+					win.z = ++this.zMax;
+					
+					this.activateNextWindow();
+					if (this.windows[previousActive]) {this.windows[previousActive].state = C.W_BACKGROUND }
+				},
+				activateNextWindow: function() {
+					let nextActive = this.windows.reduce((prev, current) => (prev.z > current.z) ? prev : current)
+					if (nextActive.z > 0) { nextActive.state = C.W_ACTIVE }
+				},
+			},
+		});
+        </script>
+    </body>
+</html>
